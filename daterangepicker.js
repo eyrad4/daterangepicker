@@ -1,5 +1,5 @@
 /**
- * @version: 3.1
+ * @version: 3.0.5
  * @author: Dan Grossman http://www.dangrossman.info/
  * @copyright: Copyright (c) 2012-2019 Dan Grossman. All rights reserved.
  * @license: Licensed under the MIT license. See http://www.opensource.org/licenses/mit-license.php
@@ -11,7 +11,7 @@
         // AMD. Make globaly available as well
         define(['moment', 'jquery'], function (moment, jquery) {
             if (!jquery.fn) jquery.fn = {}; // webpack server rendering
-            if (typeof moment !== 'function' && moment.hasOwnProperty('default')) moment = moment['default']
+            if (typeof moment !== 'function' && moment.default) moment = moment.default
             return factory(moment, jquery);
         });
     } else if (typeof module === 'object' && module.exports) {
@@ -41,7 +41,6 @@
         this.maxSpan = false;
         this.autoApply = false;
         this.singleDatePicker = false;
-        this.appendRange = false;
         this.showDropdowns = false;
         this.minYear = moment().subtract(100, 'year').format('YYYY');
         this.maxYear = moment().add(100, 'year').format('YYYY');
@@ -55,6 +54,7 @@
         this.linkedCalendars = true;
         this.autoUpdateInput = true;
         this.alwaysShowCalendars = false;
+        this.appendRange = true;
         this.ranges = {};
 
         this.opens = 'right';
@@ -390,7 +390,7 @@
             this.container.find('.drp-calendar.left').addClass('single');
             this.container.find('.drp-calendar.left').show();
             this.container.find('.drp-calendar.right').hide();
-            if (!this.timePicker && this.autoApply) {
+            if (!this.timePicker) {
                 this.container.addClass('auto-apply');
             }
         }
@@ -421,14 +421,14 @@
             .on('mouseenter.daterangepicker', 'td.available', $.proxy(this.hoverDate, this))
             .on('change.daterangepicker', 'select.yearselect', $.proxy(this.monthOrYearChanged, this))
             .on('change.daterangepicker', 'select.monthselect', $.proxy(this.monthOrYearChanged, this))
-            .on('change.daterangepicker', 'select.hourselect,select.minuteselect,select.secondselect,select.ampmselect', $.proxy(this.timeChanged, this));
+            .on('change.daterangepicker', 'select.hourselect,select.minuteselect,select.secondselect,select.ampmselect', $.proxy(this.timeChanged, this))
 
         this.container.find('.ranges')
-            .on('click.daterangepicker', 'li', $.proxy(this.clickRange, this));
+            .on('click.daterangepicker', 'li', $.proxy(this.clickRange, this))
 
         this.container.find('.drp-buttons')
             .on('click.daterangepicker', 'button.applyBtn', $.proxy(this.clickApply, this))
-            .on('click.daterangepicker', 'button.cancelBtn', $.proxy(this.clickCancel, this));
+            .on('click.daterangepicker', 'button.cancelBtn', $.proxy(this.clickCancel, this))
 
         if (this.element.is('input') || this.element.is('button')) {
             this.element.on({
@@ -530,9 +530,9 @@
                 this.renderTimePicker('left');
                 this.renderTimePicker('right');
                 if (!this.endDate) {
-                    this.container.find('.right .calendar-time select').prop('disabled', true).addClass('disabled');
+                    this.container.find('.right .calendar-time select').attr('disabled', 'disabled').addClass('disabled');
                 } else {
-                    this.container.find('.right .calendar-time select').prop('disabled', false).removeClass('disabled');
+                    this.container.find('.right .calendar-time select').removeAttr('disabled').removeClass('disabled');
                 }
             }
             if (this.endDate)
@@ -1018,18 +1018,16 @@
         updateFormInputs: function() {
 
             if (this.singleDatePicker || (this.endDate && (this.startDate.isBefore(this.endDate) || this.startDate.isSame(this.endDate)))) {
-                this.container.find('button.applyBtn').prop('disabled', false);
+                this.container.find('button.applyBtn').removeAttr('disabled');
             } else {
-                this.container.find('button.applyBtn').prop('disabled', true);
+                this.container.find('button.applyBtn').attr('disabled', 'disabled');
             }
 
         },
 
         move: function() {
             var parentOffset = { top: 0, left: 0 },
-                containerTop,
-                drops = this.drops;
-
+                containerTop;
             var parentRightEdge = $(window).width();
             if (!this.parentEl.is('body')) {
                 parentOffset = {
@@ -1039,21 +1037,10 @@
                 parentRightEdge = this.parentEl[0].clientWidth + this.parentEl.offset().left;
             }
 
-            switch (drops) {
-                case 'auto':
-                    containerTop = this.element.offset().top + this.element.outerHeight() - parentOffset.top;
-                    if (containerTop + this.container.outerHeight() >= this.parentEl[0].scrollHeight) {
-                        containerTop = this.element.offset().top - this.container.outerHeight() - parentOffset.top;
-                        drops = 'up';
-                    }
-                    break;
-                case 'up':
-                    containerTop = this.element.offset().top - this.container.outerHeight() - parentOffset.top;
-                    break;
-                default:
-                    containerTop = this.element.offset().top + this.element.outerHeight() - parentOffset.top;
-                    break;
-            }
+            if (this.drops == 'up')
+                containerTop = this.element.offset().top - this.container.outerHeight() - parentOffset.top;
+            else
+                containerTop = this.element.offset().top + this.element.outerHeight() - parentOffset.top;
 
             // Force the container to it's actual width
             this.container.css({
@@ -1063,7 +1050,7 @@
             });
             var containerWidth = this.container.outerWidth();
 
-            this.container.toggleClass('drop-up', drops == 'up');
+            this.container[this.drops == 'up' ? 'addClass' : 'removeClass']('drop-up');
 
             if (this.opens == 'left') {
                 var containerRight = parentRightEdge - this.element.offset().left - this.element.outerWidth();
@@ -1327,18 +1314,24 @@
                     date = date.clone().hour(hour).minute(minute).second(second);
                 }
 
+
                 if (this.appendRange && !this.singleDatePicker) {
-                    if (date.isBefore(this.endDate)) {
+                    const diffStartEnd = this.endDate.diff(this.startDate, 'days', true);
+
+                    console.log(diffStartEnd, diffStartEnd / 2, )
+                    if (diffStartEnd / 2 > date.diff(this.startDate, 'days', true)
+                    ) { //start + -
                         this.setStartDate(date.clone());
-
-                    } else {
-                        this.endDate = date.clone();
+                    } else { //end + -
+                        this.setEndDate(date.clone());
                     }
-
                 } else {
                     this.endDate = null;
                     this.setStartDate(date.clone());
                 }
+
+                // this.endDate = null;
+                // this.setStartDate(date.clone());
             } else if (!this.endDate && date.isBefore(this.startDate)) {
                 //special case: clicking the same date for start/end,
                 //but the time of the end date is before the start date
@@ -1369,10 +1362,9 @@
 
             if (this.singleDatePicker) {
                 this.setEndDate(this.startDate);
-                if (!this.timePicker && this.autoApply)
+                if (!this.timePicker)
                     this.clickApply();
             }
-
             this.element.trigger('mousedown.daterangepicker', this);
             this.updateView();
 
